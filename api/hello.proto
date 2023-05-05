@@ -6,6 +6,7 @@ package myapp;
 
 service GreetingService {
 	rpc Hello(HelloRequest) returns (HelloResponse);
+	rpc HelloServerStream(HelloRequest) returns (stream HelloResponse);
 }
 
 message HelloRequest {
