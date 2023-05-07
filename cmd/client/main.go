@@ -29,6 +29,9 @@ func main() {
 	address := "localhost:8080"
 	conn, err := grpc.Dial(
 		address,
+		grpc.WithUnaryInterceptor(myUnaryClientInterceptor1),
+		grpc.WithStreamInterceptor(myStreamClientInterceptor1),
+
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
 	)
@@ -192,4 +195,44 @@ func HelloBiStreams() {
 		}
 
 	}
+}
+
+func myUnaryClientInterceptor1(ctx context.Context, method string, req, res interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	fmt.Println("[pre] my unary client interceptor 1:", method, req)
+	err := invoker(ctx, method, req, res, cc, opts...)
+	fmt.Println("[post] my unary client interceptor 1", res)
+	return err
+}
+
+func myStreamClientInterceptor1(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	log.Println("[pre] my stream client interceptor 1", method)
+
+	stream, err := streamer(ctx, desc, cc, method, opts...)
+	return &myClientStreamWrapper1{stream}, err
+}
+
+type myClientStreamWrapper1 struct {
+	grpc.ClientStream
+}
+
+func (s *myClientStreamWrapper1) SendMsg(m interface{}) error {
+	log.Println("[pre message] my stream client interceptor 1: ", m)
+
+	return s.ClientStream.SendMsg(m)
+}
+
+func (s *myClientStreamWrapper1) RecvMsg(m interface{}) error {
+	err := s.ClientStream.RecvMsg(m)
+
+	if !errors.Is(err, io.EOF) {
+		log.Println("[post message] my stream client interceptor 1: ", m)
+	}
+	return err
+}
+
+func (s *myClientStreamWrapper1) CloseSend() error {
+	err := s.ClientStream.CloseSend()
+
+	log.Println("[post] my stream client interceptor 1")
+	return err
 }
