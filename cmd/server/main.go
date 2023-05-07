@@ -31,7 +31,10 @@ func main() {
 		panic(err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(myUnaryServerInterceptor1),
+		grpc.StreamInterceptor(myStreamServerInterceptor1),
+	)
 
 	hellopb.RegisterGreetingServiceServer(s, NewMyServer())
 
@@ -109,4 +112,36 @@ func (s *myServer) HelloBiStreams(stream hellopb.GreetingService_HelloBiStreamsS
 			return err
 		}
 	}
+}
+
+func myUnaryServerInterceptor1(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	log.Println("[pre] my unary server interceptor 1: ", info.FullMethod)
+	res, err := handler(ctx, req)
+	log.Println("[post] my unary server interceptor 1:", res)
+	return res, err
+}
+
+func myStreamServerInterceptor1(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	log.Println("[pre stream] my stream server interceptor 1:", info.FullMethod)
+	err := handler(srv, &myServerStreamWrapper1{ss})
+	log.Println("[post stream] my stream server interceptor 1:")
+	return err
+}
+
+type myServerStreamWrapper1 struct {
+	grpc.ServerStream
+}
+
+func (s *myServerStreamWrapper1) RecvMsg(m interface{}) error {
+	err := s.ServerStream.RecvMsg(m)
+
+	if !errors.Is(err, io.EOF) {
+		log.Println("[pre message] my stream server interceptor 1:", m)
+	}
+	return err
+}
+
+func (s *myServerStreamWrapper1) SendMsg(m interface{}) error {
+	log.Println("[post message] my stream server interceptor 1:", m)
+	return s.ServerStream.SendMsg(m)
 }
